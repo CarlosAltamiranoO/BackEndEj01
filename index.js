@@ -6,20 +6,27 @@ class ProductManager {
         this.products = [];
     }
 
-    async #getId() {
+    #addId() {
         if (this.products.length === 0) return 1;
-        return this.products.length + 1;
+        return this.products.at(-1).id + 1; // metodo at, si colocas -1 accedes al ultimo elemento del array
     }
+
     #findCode(code) {
         let find = this.products.find(elem => elem.code === code)
         if (find === undefined) return false;
         else return true;
     }
+
+    #findIndice(id){
+        const indice = this.products.map(product => product.id).indexOf(id)
+        return indice
+    }
+
     async #salveProduct() {
         try {
             const json = JSON.stringify(this.products, null, '\t')
             await fs.promises.writeFile(this.path, json)
-        } catch (error) {
+        } catch (Error) {
             console.error(error)
         }
     }
@@ -31,70 +38,83 @@ class ProductManager {
             this.products = JSON.parse(json);
             return this.products
         } catch (error) {
+            if (error.code == "ENOENT") return [];
             console.error(error)
         }
     }
 
-    async addProduct(producto) {
-        this.getProducts();
+    async addProduct(title, description, price, thumbnail, code, stock) {
+        await this.getProducts();
 
         if (this.#findCode(code)) return 'el codigo del producto ya se encuentra cargado!'
-        let id = this.#getId();
-        const product = { id: id, ...producto };
+        let id = this.#addId();
+        let product = {
+            id: id,
+            title: title,
+            description: description,
+            price: price,
+            thumbnail: thumbnail,
+            code: code,
+            stock: stock,
+        };
         this.products.push(product);
-
         this.#salveProduct();
         return 'se cargo el producto'
     }
-    getProductById(id) {
-        this.getProducts();
+
+    async getProductById(id) {
+        await this.getProducts();
 
         let product;
-        product = this.products.find(elem => parseInt(elem.id) === parseInt(id))
+        product = this.products.find(elem => elem.id === id)
         if (product === undefined) return 'Not Found'
         return product
     }
 
     async updateProduct(id, campoActualizar, cambio) {
         await this.getProducts();
-        let find = this.products.find(elem => elem.id === id)
-        if (find === -1) return "no hay producto a actualizar"
+
+        const indice = this.#findIndice(id)
+        if (indice === -1) return "no hay producto a actualizar"
 
         const producto = this.products[indice]
-        Object.defineProperty(producto, campoActualizar, {
+        Object.defineProperty(producto, campoActualizar, { // metodo para cambiar la propiedad de un objeto, talves mejor cambiarlo 
             value: cambio,
             writable: true,
             configurable: true,
             enumerable: true,
         })
-
-        //producto[campoActualizar] = cambio
         this.products[indice] = producto;
-        await this.#salveProduct() 
-        return ("Producto actualizado:", producto)
+        await this.#salveProduct()
+        return "Producto actualizado:"
     }
-    
-    async deleteProduct(){
+
+    async deleteProduct(id) {
         await this.getProducts();
-        
-        let find = this.products.find(elem => elem.id === id)
-        if (find === -1) return "no hay producto a eliminar"
-        const aux = this.products.map(elem => elem.id !== id)
-        this.products = aux;
-        return aux
-        /* const index = this.products.indexOf(elem => elem.id === id)
-        const aux = this.products.splice(id, 1) */
+
+        const index = this.#findIndice(id)
+        if (index === -1) return "no hay producto a eliminar"
+        this.products.splice(index, 1)
+        await this.#salveProduct()
+        return "se elimino el producto"
     }
 }
 
+let pm = new ProductManager('./Archivo.json');
 
+const run = async () => {
 
-let pm = new ProductManager();
-console.log("Array de productos: ", pm.getProducts());
-console.log(pm.addProduct("pc", "computadora escritorio", 125000, "-", "T125", 6));
-console.log(pm.addProduct("Notebook", "Notebook hp ommen 15 ", 1250000, "-", "N109", 4));
-console.log(pm.addProduct("Notebook", "Notebook hp ommen 15 ", 1250000, "-", "N109", 4));
-console.log(pm.addProduct("tablet", "tablet lenovo N10", 85000, "-", "N10-1", 9));
-console.log("Array de productos: ", pm.getProducts());
-console.log("producto a encontrar: ", pm.getProductById(10))
-console.log("producto a encontrar: ", pm.getProductById(2))
+    console.log("Array de productos: ", await pm.getProducts());
+    console.log(await pm.addProduct("pc", "computadora escritorio", 125000, "-", "T125", 6));
+    console.log(await pm.addProduct("Notebook", "Notebook hp ommen 15 ", 1250000, "-", "N109", 4));
+    console.log(await pm.addProduct("Notebook", "Notebook hp ommen 15 ", 1250000, "-", "N109", 4));
+    console.log(await pm.addProduct("tablet", "tablet lenovo N10", 85000, "-", "N10-1", 9));
+    console.log("Array de productos: ", await pm.getProducts());
+    console.log(await pm.updateProduct(2, "description", "Notebook hp ommen 15 retroiluminada roja"));
+    console.log("Producto a encontrar: ", await pm.getProductById(10))
+    console.log("Producto a encontrar: ", await pm.getProductById(2))
+    console.log(await pm.deleteProduct(1));
+
+}
+
+run()
